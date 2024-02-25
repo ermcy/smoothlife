@@ -2,8 +2,8 @@ use std::ops::Mul;
 
 use rand::Rng;
 
-const HEIGHT: usize = 250;
-const WIDTH: usize = 250;
+const HEIGHT: usize = 100;
+const WIDTH: usize = 100;
 
 const ALPHA: f64 = 0.030;
 
