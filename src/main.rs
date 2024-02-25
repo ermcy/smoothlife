@@ -1,12 +1,11 @@
-use std::io::{BufWriter, stdout, Stdout, Write};
-use std::thread;
+use std::ops::Mul;
 
 use rand::Rng;
 
-const WIDTH: usize = 250;
 const HEIGHT: usize = 250;
+const WIDTH: usize = 250;
 
-const ALPHA: f64 = 0.028;
+const ALPHA: f64 = 0.030;
 
 const B1: f64 = 0.278;
 const B2: f64 = 0.365;
@@ -15,45 +14,48 @@ const D2: f64 = 0.445;
 const RA: i32 = 15;
 const LEVEL: [char; 9] = [' ', '.', '-', '=', 'c', 'o', 'a', 'A', '@'];
 
-type Erm = [[f64; HEIGHT]; WIDTH];
 
-struct Grid(Erm);
+struct Grid {
+    pub data: Vec<Vec<f64>>,
+    pub height: usize,
+    pub width: usize
+}
 
 impl Grid {
-    pub const fn empty() -> Self {
-        Self([[0.0; HEIGHT]; WIDTH])
+    pub fn empty(height: usize, width: usize) -> Self {
+        return Self {
+            data: vec![vec![0.0; width]; height],
+            height,
+            width,
+        }
     }
 
-    pub fn init() -> Self {
+    pub fn init(height: usize, width: usize) -> Self {
         let mut rng = rand::thread_rng();
-        let mut grid = [[0.0; HEIGHT]; WIDTH];
-        for sub_arr in grid.iter_mut() {
-            for elem in sub_arr.iter_mut() {
-                *elem = rng.gen_range(0.0..1.0);
+        let mut result = Grid::empty(height, width);
+        for y in result.data.iter_mut() {
+            for x in y.iter_mut() {
+                *x = rng.gen::<f64>();
             }
         }
-        Self(grid)
+        return result;
     }
 
-    pub fn display(&self, buf_writer: &mut BufWriter<Stdout>) {
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                let idx = self.0[y][x] * (LEVEL.len() - 1) as f64;
+    pub fn display(&self) {
+        for row in &self.data {
+            for e in row {
+                let idx = e * (LEVEL.len() - 1) as f64;
                 let c = LEVEL[idx as usize];
-                if let Err(why) = buf_writer.write_all(&[c as u8]) {
-                    unreachable!("{:#?}", why);
-                };
+                print!("{c}");
             }
-            if let Err(why) = buf_writer.write_all(&[b'\n']) {
-                unreachable!("{:#?}", why);
-            };
+            println!();
         }
     }
 
     pub fn compute_diff(&self) -> Self {
-        let mut diff_grid = Grid::empty();
-        for cy in 0..HEIGHT {
-            for cx in 0..WIDTH {
+        let mut diff_grid = Grid::empty(self.height, self.width);
+        for cy in 0..self.height {
+            for cx in 0..self.width {
                 let mut m = 0.0;
                 let mut n = 0.0;
                 let mut am = 0.0;
@@ -61,15 +63,14 @@ impl Grid {
                 let ri = RA / 3;
                 for dy in -(RA - 1)..=(RA - 1) {
                     for dx in -(RA - 1)..=(RA - 1) {
-                        let x = (cx as i32 + dx).rem_euclid(WIDTH as i32) as usize;
-                        let y = (cy as i32 + dy).rem_euclid(HEIGHT as i32) as usize;
+                        let x = cx.wrapping_add(dx as usize).rem_euclid(WIDTH);
+                        let y = cy.wrapping_add(dy as usize).rem_euclid(HEIGHT);
                         let pow = dx * dx + dy * dy;
                         if pow <= ri * ri {
-                            m += self.0[y][x];
+                            m += self.data[y][x];
                             am += 1.0;
-                        }
-                        if pow <= RA * RA {
-                            n += self.0[y][x];
+                        } else if pow <= RA * RA {
+                            n += self.data[y][x];
                             an += 1.0;
                         }
                     }
@@ -77,10 +78,19 @@ impl Grid {
                 m /= am;
                 n /= an;
                 let q = s(n, m);
-                diff_grid.0[cy][cx] = (2.0 * q) - 1.0;
+                diff_grid.data[cy][cx] = (2.0 * q) - 1.0;
             }
         }
-        diff_grid
+        return diff_grid;
+    }
+
+    pub fn apply_grid_diff(&mut self, mut other: Self, dt: f64) {
+        for (g, d) in self.data.iter_mut().zip(other.data.iter_mut()) {
+            for (old, new) in g.iter_mut().zip(d.iter_mut()) {
+                *old += dt.mul(*new);
+                clamp(old, 0.0, 1.0);
+            }
+        }
     }
 }
 
@@ -106,27 +116,12 @@ fn clamp(x: &mut f64, l: f64, h: f64) {
 }
 
 fn main() {
-    let thread = match thread::Builder::new().stack_size(10000000000).spawn(|| {
-        let stdout = stdout();
-        let mut buff_out = BufWriter::new(stdout);
-        let dt = 0.05;
-        let mut grid = Grid::init();
-        grid.display(&mut buff_out);
-        loop {
-            let diff = grid.compute_diff();
-            for y in 0..HEIGHT {
-                for x in 0..WIDTH {
-                    grid.0[y][x] += dt * diff.0[y][x];
-                    clamp(&mut grid.0[y][x], 0.0, 1.0);
-                }
-            }
-            grid.display(&mut buff_out);
-        }
-    }) {
-        Ok(ok) => ok,
-        Err(why) => unreachable!("{:#?}", why)
-    };
-    if let Err(why) = thread.join() {
-        unreachable!("{:#?}", why);
+    let dt = 0.03;
+    let mut grid = Grid::init(HEIGHT, WIDTH);
+    grid.display();
+    loop {
+        let diff = grid.compute_diff();
+        grid.apply_grid_diff(diff, dt);
+        grid.display();
     }
 }
