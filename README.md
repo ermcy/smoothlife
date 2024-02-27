@@ -10,4 +10,5 @@ cargo run --release
 ### References
 SmoothLife paper: https://arxiv.org/abs/1111.1567
 
-Tsoding's SmoothLife YouTube Playlist: [Link](https://www.youtube.com/watch?v=L68_BBiuHUw&list=PLpM-Dvs8t0VZxTsk3uYIM34QhMgNQP06G)
+Tsoding's SmoothLife YouTube
+Playlist: [Link](https://youtube.com/playlist?list=PLpM-Dvs8t0VZxTsk3uYIM34QhMgNQP06G&si=VTGQOdzRHyyPVDpm)
